@@ -1,14 +1,14 @@
 import requests
 import json
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from core.rag import rag_service
 from services.workspace_service import workspace_service
 
 class LLMClient:
     def __init__(self, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
-        self.active_model_id = "qwen2.5-coder:7b"
+        self.active_model_id = None
 
     def get_models_config(self) -> Dict[str, Any]:
         try:
@@ -24,10 +24,7 @@ class LLMClient:
                         "model": model_name
                     })
                 
-                default_model = "qwen2.5-coder:7b"
-                if models and not any(m["id"] == default_model for m in models):
-                    default_model = models[0]["id"]
-                    
+                default_model = models[0]["id"] if models else None
                 return {
                     "default": default_model,
                     "models": models
@@ -35,26 +32,40 @@ class LLMClient:
         except Exception as e:
             print(f"Error fetching Ollama models: {e}")
             
-        # Fallback
         return {
-            "default": "qwen2.5-coder:7b",
-            "models": [{"id": "qwen2.5-coder:7b", "name": "Qwen 2.5 Coder 7B", "model": "qwen2.5-coder:7b"}]
+            "default": None,
+            "models": []
         }
 
     def set_active_model(self, model_id: str) -> str:
         self.active_model_id = model_id
         return model_id
 
-    def resolve_model(self, workspace_id: str = None) -> str:
+    def resolve_model_details(self, workspace_id: str = None) -> Tuple[str, str]:
+        # 1. Workspace model
         if workspace_id:
             try:
                 ws = workspace_service.get_workspace(workspace_id)
                 ws_model = ws.get("model")
                 if ws_model:
-                    return ws_model
+                    return ws_model, "workspace"
             except:
                 pass
-        return self.active_model_id
+                
+        # 2. Global selected model
+        if self.active_model_id:
+            return self.active_model_id, "global"
+            
+        # 3. Default model
+        config = self.get_models_config()
+        if config.get("default"):
+            return config["default"], "default"
+            
+        return "", "none"
+
+    def resolve_model(self, workspace_id: str = None) -> str:
+        model, _ = self.resolve_model_details(workspace_id)
+        return model
 
     def build_prompt(self, workspace_id: str, query: str) -> str:
         results = rag_service.search(workspace_id, query, top_k=5)
@@ -76,8 +87,12 @@ class LLMClient:
         prompt = f"{system_prompt}\n\nContext:\n{context_str}\n\nUser Question:\n{query}"
         return prompt
 
+    def _log_request(self, workspace_id: str, model_name: str):
+        print(f"\n[LLM]\nworkspace={workspace_id}\nselected_model={model_name}\n")
+
     def generate(self, workspace_id: str, query: str) -> str:
         model = self.resolve_model(workspace_id)
+        self._log_request(workspace_id, model)
         
         prompt = self.build_prompt(workspace_id, query)
         
@@ -94,6 +109,7 @@ class LLMClient:
 
     def generate_stream(self, workspace_id: str, query: str):
         model = self.resolve_model(workspace_id)
+        self._log_request(workspace_id, model)
         
         prompt = self.build_prompt(workspace_id, query)
         

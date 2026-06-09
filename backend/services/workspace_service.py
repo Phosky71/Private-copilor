@@ -26,8 +26,7 @@ class WorkspaceService:
             "id": workspace_id,
             "name": name,
             "folders": [],
-            "files": [],
-            "model": "qwen2.5-coder:7b"
+            "files": []
         }
         
         with open(self._get_config_path(workspace_id), "w") as f:

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import SettingsModal from './components/SettingsModal'
 import FileBrowserModal from './components/FileBrowserModal'
+import ChatMessage, { Message } from './components/ChatMessage'
 
 function App() {
   const [workspaces, setWorkspaces] = useState<any[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<any>(null)
-  const [messages, setMessages] = useState<{role: string, content: string}[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isIndexing, setIsIndexing] = useState(false)
   const [availableModels, setAvailableModels] = useState<any[]>([])
@@ -108,11 +109,11 @@ function App() {
     e.preventDefault()
     if (!input.trim() || !activeWorkspace) return
 
-    const userMessage = { role: 'user', content: input }
+    const userMessage: Message = { role: 'user', content: input }
     setMessages(prev => [...prev, userMessage])
     setInput('')
 
-    const aiMessage = { role: 'assistant', content: '' }
+    const aiMessage: Message = { role: 'assistant', content: '', status: 'thinking' }
     setMessages(prev => [...prev, aiMessage])
 
     try {
@@ -127,36 +128,53 @@ function App() {
       const decoder = new TextDecoder()
       
       let done = false;
+      let buffer = '';
+      
       while (!done) {
         const { value, done: readerDone } = await reader.read()
         done = readerDone
         if (value) {
-          const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n')
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || '' // Keep the last incomplete line in the buffer
           
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            const trimmedLine = line.trim()
+            if (trimmedLine.startsWith('data: ')) {
+              const jsonStr = trimmedLine.substring(6)
+              if (!jsonStr) continue
               try {
-                const data = JSON.parse(line.substring(6))
-                if (data.response) {
+                const data = JSON.parse(jsonStr)
+                if (data.response !== undefined) {
                   setMessages(prev => {
                     const newMessages = [...prev]
-                    newMessages[newMessages.length - 1].content += data.response
+                    const lastMsg = newMessages[newMessages.length - 1]
+                    lastMsg.content += data.response
+                    lastMsg.status = 'streaming'
                     return newMessages
                   })
                 }
               } catch (err) {
-                console.error("Error parsing chunk", err)
+                // Ignore silent JSON parse errors for completely broken lines just in case
               }
             }
           }
         }
       }
+      
+      setMessages(prev => {
+        const newMessages = [...prev]
+        newMessages[newMessages.length - 1].status = 'done'
+        return newMessages
+      })
+      
     } catch (e) {
       console.error(e)
       setMessages(prev => {
         const newMessages = [...prev]
-        newMessages[newMessages.length - 1].content = "Error communicating with AI assistant."
+        const lastMsg = newMessages[newMessages.length - 1]
+        lastMsg.content = "Error communicating with AI assistant."
+        lastMsg.status = 'done'
         return newMessages
       })
     }
@@ -169,8 +187,14 @@ function App() {
       await fetch(`${API_URL}/model/set`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model_id: modelId })
+        body: JSON.stringify({ 
+          model_id: modelId,
+          workspace_id: activeWorkspace?.id || undefined
+        })
       })
+      if (activeWorkspace) {
+        setActiveWorkspace({ ...activeWorkspace, model: modelId })
+      }
     } catch (err) {
       console.error(err)
     }
@@ -295,15 +319,7 @@ function App() {
             </div>
           ) : (
             messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-3xl rounded-2xl px-5 py-3.5 leading-relaxed shadow-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-blue-600 text-white rounded-br-none' 
-                    : 'bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-none'
-                }`}>
-                  {msg.content}
-                </div>
-              </div>
+              <ChatMessage key={i} message={msg} />
             ))
           )}
         </div>

@@ -22,5 +22,8 @@ class RemoveFolderRequest(BaseModel):
     workspace_id: str
     folder_path: str
 
+from typing import Optional
+
 class SetModelRequest(BaseModel):
     model_id: str
+    workspace_id: Optional[str] = None
