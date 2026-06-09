@@ -6,12 +6,38 @@ function App() {
   const [messages, setMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [isIndexing, setIsIndexing] = useState(false)
+  const [availableModels, setAvailableModels] = useState<any[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<string>('')
 
   const API_URL = 'http://localhost:8000'
 
   useEffect(() => {
     fetchWorkspaces()
+    fetchModels()
   }, [])
+
+  const fetchModels = async () => {
+    try {
+      const res = await fetch(`${API_URL}/model`)
+      const data = await res.json()
+      setAvailableModels(data.models || [])
+      const defaultModel = data.models?.find((m: any) => m.model === data.default)
+      if (defaultModel) {
+        setSelectedModelId(defaultModel.id)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    if (activeWorkspace && availableModels.length > 0) {
+      const wsModel = availableModels.find(m => m.model === activeWorkspace.model)
+      if (wsModel) {
+        setSelectedModelId(wsModel.id)
+      }
+    }
+  }, [activeWorkspace, availableModels])
 
   const fetchWorkspaces = async () => {
     try {
@@ -30,11 +56,14 @@ function App() {
     setActiveWorkspace(ws)
     setMessages([])
     try {
-      await fetch(`${API_URL}/workspace/switch`, {
+      const res = await fetch(`${API_URL}/workspace/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspace_id: ws.id })
       })
+      const data = await res.json()
+      // ensure we use the updated workspace data that includes model
+      setActiveWorkspace(data.active_workspace)
     } catch (e) {
       console.error(e)
     }
@@ -129,6 +158,20 @@ function App() {
     }
   }
 
+  const handleModelChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const modelId = e.target.value
+    setSelectedModelId(modelId)
+    try {
+      await fetch(`${API_URL}/model/set`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_id: modelId })
+      })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
       {/* Sidebar */}
@@ -169,20 +212,33 @@ function App() {
           <h2 className="text-lg font-semibold text-gray-200">
             {activeWorkspace ? activeWorkspace.name : 'Select a workspace'}
           </h2>
-          {activeWorkspace && (
-            <div className="flex space-x-3">
-              <button 
-                onClick={handleIndexWorkspace}
-                disabled={isIndexing}
-                className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+          <div className="flex items-center space-x-3">
+            {availableModels.length > 0 && (
+              <select 
+                value={selectedModelId} 
+                onChange={handleModelChange}
+                className="bg-gray-800 text-sm text-gray-200 border border-gray-700 rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                {isIndexing ? 'Indexing...' : 'Index Workspace'}
-              </button>
-              <button className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-sm font-medium transition-colors">
-                Settings
-              </button>
-            </div>
-          )}
+                {availableModels.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            )}
+            {activeWorkspace && (
+              <>
+                <button 
+                  onClick={handleIndexWorkspace}
+                  disabled={isIndexing}
+                  className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {isIndexing ? 'Indexing...' : 'Index Workspace'}
+                </button>
+                <button className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-sm font-medium transition-colors">
+                  Settings
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Chat Area */}

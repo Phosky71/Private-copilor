@@ -9,3 +9,6 @@ class AddFolderRequest(BaseModel):
     
 class SwitchWorkspaceRequest(BaseModel):
     workspace_id: str
+
+class SetModelRequest(BaseModel):
+    model_id: str
