@@ -1,23 +1,25 @@
-# LocalCopilot
+# workspace-copilot
 
-> A self-hosted AI coding assistant with workspace isolation, RAG-powered context retrieval, and a streaming chat interface — all running locally via Ollama.
-
-![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama-qwen2.5--coder-black?logo=llama&logoColor=white)
-![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB-orange)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+Self-hosted AI coding assistant that runs entirely on your machine. Chat with your codebase using a local LLM, browse and edit files, and commit changes — all without sending code to external services.
 
 ---
 
 ## What it does
 
-LocalCopilot is a private, offline-first AI assistant designed for developers who want Copilot-like features without sending their code to the cloud.
+workspace-copilot indexes your project files and lets you query them through a streaming chat interface backed by a local LLM via Ollama. Each project lives in its own isolated workspace, so the model only receives context relevant to the active one.
 
-- **Multi-workspace isolation** — each project folder is a separate workspace; the model only sees context relevant to the active one.
-- **Custom RAG pipeline** — built from scratch using [ChromaDB](https://www.trychroma.com/) and [SentenceTransformers](https://www.sbert.net/) for local semantic search over your codebase.
-- **Streaming chat interface** — real-time token streaming via [Ollama](https://ollama.com/), with a clean frontend UI.
-- **No telemetry, no API keys** — everything stays on your machine.
+Beyond chat, it exposes a file browser, a diff viewer to review AI-suggested changes before applying them, and a Git integration layer that can stage and commit edits automatically.
+
+**Core features**
+
+- **Workspace isolation** — each workspace has its own ChromaDB collection and indexed files; switching workspaces resets the retrieval context completely
+- **RAG pipeline** — files are scanned with `file_scanner.py`, embedded with SentenceTransformers, and stored in ChromaDB for semantic retrieval at query time
+- **Streaming chat** — responses are streamed token by token via SSE (`/chat/stream`) using Ollama's HTTP API
+- **File browser** — navigate, read, and edit files inside a workspace directly from the UI (`FileBrowserModal`)
+- **Diff viewer** — AI-proposed edits are shown as diffs (`DiffViewerComponent`) before being written to disk
+- **Git integration** — `GitService` initialises a repo if none exists, reads `git status`, and can apply an edit and commit it in one call (`apply_edit_and_commit`)
+- **Model switcher** — change the active Ollama model at runtime from `SettingsModal` without restarting the backend
+- **No telemetry** — no API keys, no cloud calls, everything runs on `localhost`
 
 ---
 
@@ -25,29 +27,52 @@ LocalCopilot is a private, offline-first AI assistant designed for developers wh
 
 | Layer | Technology |
 |---|---|
-| LLM runtime | Ollama (`qwen2.5-coder:7b`) |
-| Vector store | ChromaDB |
+| LLM runtime | [Ollama](https://ollama.com) |
+| Vector store | [ChromaDB](https://www.trychroma.com) |
 | Embeddings | SentenceTransformers |
-| Backend | Python (FastAPI) |
-| Frontend | Node.js + React |
+| Backend | Python 3.11 · FastAPI · Uvicorn |
+| Frontend | React · Vite · TypeScript · Tailwind CSS |
+
+---
+
+## Project structure
+
+```
+workspace-copilot/
+├── backend/
+│   ├── api/          # FastAPI routers (chat, workspace, index, model, fs, git)
+│   ├── core/         # LLM client and shared infrastructure
+│   ├── db/           # ChromaDB setup and RAG retrieval logic
+│   ├── services/     # Business logic (file_scanner, git_service, workspace_service)
+│   └── main.py       # Uvicorn entry point (port 8000)
+├── frontend/
+│   └── src/
+│       ├── components/   # ChatMessage, DiffViewerComponent, FileBrowserModal, SettingsModal
+│       └── App.tsx
+├── workspaces/       # Per-project data and indexed files
+├── run.py            # Launches backend + frontend together
+└── start.bat         # Windows launcher
+```
 
 ---
 
 ## Getting started
 
-### Prerequisites
+### Requirements
 
 - Python 3.11+
 - Node.js 18+
-- [Ollama](https://ollama.com/) installed and running
+- [Ollama](https://ollama.com) installed and running locally
 
-### 1. Pull the model
+### 1. Pull a model
 
 ```bash
-ollama run qwen2.5-coder:7b
+ollama pull qwen2.5-coder:7b
 ```
 
-### 2. Set up the backend
+Any model available in Ollama works. `qwen2.5-coder:7b` is the default.
+
+### 2. Install backend dependencies
 
 ```bash
 cd backend
@@ -56,48 +81,50 @@ python -m venv venv
 # Windows
 venv\Scripts\activate
 
-# Mac / Linux
+# macOS / Linux
 source venv/bin/activate
 
 pip install -r requirements.txt
 ```
 
-### 3. Set up the frontend
+### 3. Install frontend dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
----
+### 4. Start everything
 
-## Running
-
-Launch both backend and frontend from the project root:
-
-**Windows**
+**Windows:**
 ```cmd
 start.bat
 ```
 
-**Cross-platform**
+**Any platform:**
 ```bash
 python run.py
 ```
 
-The app will be available at `http://localhost:3000` by default.
+The backend starts on `http://localhost:8000` and the frontend on `http://localhost:5173`.
 
 ---
 
-## Workspaces
+## API routes
 
-Each workspace maps to a local folder. When you switch workspaces, the RAG index is reloaded so the model has context only for that project. Workspace configs are stored under `/workspaces`.
+| Method | Path | Description |
+|---|---|---|
+| POST | `/chat` | Single-turn chat with workspace context |
+| POST | `/chat/stream` | Streaming chat (SSE) |
+| GET/POST | `/workspace` | List and create workspaces |
+| POST | `/index` | Index files in a workspace |
+| GET/POST | `/model` | Get or set the active Ollama model |
+| GET/POST | `/fs` | Browse and read files |
+| GET | `/git/status` | Git status for the active workspace |
+| POST | `/git/apply` | Apply an AI edit and commit it |
 
 ---
 
-## Roadmap
+## License
 
-- [ ] File-level diff view in chat
-- [ ] Support for additional Ollama models (Mistral, DeepSeek Coder)
-- [ ] VSCode extension
-- [ ] Workspace auto-indexing on file change (watchdog)
+MIT
