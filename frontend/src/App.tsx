@@ -154,6 +154,7 @@ function App() {
           const lines = buffer.split('\n')
           buffer = lines.pop() || '' // Keep the last incomplete line in the buffer
           
+          let chunkContent = ''
           for (const line of lines) {
             const trimmedLine = line.trim()
             if (trimmedLine.startsWith('data: ')) {
@@ -162,18 +163,24 @@ function App() {
               try {
                 const data = JSON.parse(jsonStr)
                 if (data.response !== undefined) {
-                  setMessages(prev => {
-                    const newMessages = [...prev]
-                    const lastMsg = newMessages[newMessages.length - 1]
-                    lastMsg.content += data.response
-                    lastMsg.status = 'streaming'
-                    return newMessages
-                  })
+                  chunkContent += data.response
                 }
               } catch (err) {
                 // Ignore silent JSON parse errors for completely broken lines just in case
               }
             }
+          }
+          
+          if (chunkContent) {
+            setMessages(prev => {
+              const newMessages = [...prev]
+              // Prevent React StrictMode double mutation by creating a deep copy of the last message
+              const lastMsg = { ...newMessages[newMessages.length - 1] }
+              lastMsg.content += chunkContent
+              lastMsg.status = 'streaming'
+              newMessages[newMessages.length - 1] = lastMsg
+              return newMessages
+            })
           }
         }
       }
