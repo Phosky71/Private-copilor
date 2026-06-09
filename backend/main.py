@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from db import init_db
-from workspace_service import *
-from indexer import index_workspace
-from rag import load_chain
+from backend.db import init_db
+from backend.workspace_service import create_workspace
+from backend.indexer import index_workspace
+from backend.rag import load_chain
 
 app = FastAPI()
 
