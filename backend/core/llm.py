@@ -44,4 +44,25 @@ class LLMClient:
         else:
             raise Exception(f"Ollama API Error: {response.text}")
 
+    def generate_stream(self, workspace_id: str, query: str):
+        workspace = workspace_service.get_workspace(workspace_id)
+        model = workspace.get("model", "qwen2.5-coder:7b")
+        
+        prompt = self.build_prompt(workspace_id, query)
+        
+        import json
+        response = requests.post(f"{self.base_url}/api/generate", json={
+            "model": model,
+            "prompt": prompt,
+            "stream": True
+        }, stream=True)
+        
+        if response.status_code == 200:
+            for line in response.iter_lines():
+                if line:
+                    data = json.loads(line)
+                    yield f"data: {json.dumps({'response': data.get('response', ''), 'done': data.get('done', False)})}\n\n"
+        else:
+            yield f"data: {json.dumps({'error': f'Ollama API Error: {response.text}'})}\n\n"
+
 llm_client = LLMClient()

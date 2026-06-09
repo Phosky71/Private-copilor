@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from core.llm import llm_client
 
@@ -18,4 +19,7 @@ def chat(request: ChatRequest):
 
 @router.post("/stream")
 def chat_stream(request: ChatRequest):
-    return {"status": "not implemented"}
+    return StreamingResponse(
+        llm_client.generate_stream(request.workspace_id, request.query), 
+        media_type="text/event-stream"
+    )
