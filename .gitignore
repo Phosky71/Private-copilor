@@ -1,2 +1,23 @@
-.git
-backend/__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Node
+node_modules/
+dist/
+build/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database / Vector Store
+chroma_data/
+workspaces/*/chroma_db/
+
+# OS
+.DS_Store
+Thumbs.db
