@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import SettingsModal from './components/SettingsModal'
 import FileBrowserModal from './components/FileBrowserModal'
-import ChatMessage, { Message } from './components/ChatMessage'
+import ChatMessage, { type Message } from './components/ChatMessage'
 
 function App() {
   const [workspaces, setWorkspaces] = useState<any[]>([])
@@ -13,8 +13,24 @@ function App() {
   const [selectedModelId, setSelectedModelId] = useState<string>('')
   const [showSettings, setShowSettings] = useState(false)
   const [browserMode, setBrowserMode] = useState<'folder'|'file'|null>(null)
+  const [gitStatus, setGitStatus] = useState<any>(null)
 
   const API_URL = 'http://localhost:8000'
+
+  const fetchGitStatus = async () => {
+    if (!activeWorkspace) return
+    try {
+      const res = await fetch(`${API_URL}/git/status?workspace_id=${activeWorkspace.id}`)
+      const data = await res.json()
+      setGitStatus(data)
+    } catch(e) {}
+  }
+
+  useEffect(() => {
+    fetchGitStatus()
+    const interval = setInterval(fetchGitStatus, 5000)
+    return () => clearInterval(interval)
+  }, [activeWorkspace])
 
   useEffect(() => {
     fetchWorkspaces()
@@ -259,9 +275,34 @@ function App() {
           </div>
         </div>
         
+        {/* Git Status Panel */}
+        <div className="flex-1 mt-6 border-t border-gray-700 pt-4 overflow-y-auto">
+          <h2 className="text-xs uppercase text-gray-400 font-semibold mb-3">Git Status</h2>
+          {gitStatus ? (
+            <div className="space-y-2 text-sm bg-gray-900 p-3 rounded-md border border-gray-700">
+              <div className="flex items-center gap-2 text-blue-400">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                </svg>
+                <span className="font-mono text-xs font-bold truncate">{gitStatus.branch || 'N/A'}</span>
+              </div>
+              <div className="text-gray-400 text-xs mt-2">
+                Pending Changes: {gitStatus.pending_changes?.length || 0}
+              </div>
+              {gitStatus.pending_changes && gitStatus.pending_changes.length > 0 && (
+                <ul className="text-xs font-mono text-yellow-400 mt-1 max-h-24 overflow-y-auto">
+                  {gitStatus.pending_changes.map((c: string, i: number) => <li key={i} className="truncate">{c}</li>)}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 italic">No valid workspace or repo loaded.</p>
+          )}
+        </div>
+
         <button 
           onClick={handleCreateWorkspace}
-          className="mt-auto px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors flex items-center justify-center font-medium"
+          className="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors flex items-center justify-center font-medium shadow-sm"
         >
           <span className="mr-2">+</span> New Workspace
         </button>
@@ -319,7 +360,12 @@ function App() {
             </div>
           ) : (
             messages.map((msg, i) => (
-              <ChatMessage key={i} message={msg} />
+              <ChatMessage 
+                key={i} 
+                message={msg} 
+                workspaceId={activeWorkspace?.id || ''} 
+                API_URL={API_URL} 
+              />
             ))
           )}
         </div>

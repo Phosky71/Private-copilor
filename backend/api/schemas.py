@@ -27,3 +27,9 @@ from typing import Optional
 class SetModelRequest(BaseModel):
     model_id: str
     workspace_id: Optional[str] = None
+
+class GitApplyRequest(BaseModel):
+    workspace_id: str
+    file_path: str
+    original: str
+    replacement: str

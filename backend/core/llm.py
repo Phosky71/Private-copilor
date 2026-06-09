@@ -81,7 +81,16 @@ class LLMClient:
         system_prompt = (
             "You are a local AI coding assistant. You have access to the user's workspace files. "
             "Use the provided context to answer the user's questions about their codebase. "
-            "If the answer is not in the context, you can use your general knowledge but mention it."
+            "IMPORTANT: If you want to propose a file modification, you MUST use the following exact XML format:\n"
+            "<edit file=\"path/to/file.ext\">\n"
+            "<original>\n"
+            "exact old code to replace\n"
+            "</original>\n"
+            "<replacement>\n"
+            "new code\n"
+            "</replacement>\n"
+            "</edit>\n"
+            "Do not use markdown code blocks for file edits. Only use the <edit> tags."
         )
         
         prompt = f"{system_prompt}\n\nContext:\n{context_str}\n\nUser Question:\n{query}"
