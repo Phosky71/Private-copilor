@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import SettingsModal from './components/SettingsModal'
+import FileBrowserModal from './components/FileBrowserModal'
 
 function App() {
   const [workspaces, setWorkspaces] = useState<any[]>([])
@@ -8,6 +10,8 @@ function App() {
   const [isIndexing, setIsIndexing] = useState(false)
   const [availableModels, setAvailableModels] = useState<any[]>([])
   const [selectedModelId, setSelectedModelId] = useState<string>('')
+  const [showSettings, setShowSettings] = useState(false)
+  const [browserMode, setBrowserMode] = useState<'folder'|'file'|null>(null)
 
   const API_URL = 'http://localhost:8000'
 
@@ -172,6 +176,40 @@ function App() {
     }
   }
 
+  const handleUpdateWorkspaceName = async (name: string) => {
+    try {
+      const res = await fetch(`${API_URL}/workspace/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: activeWorkspace.id, name })
+      })
+      const ws = await res.json()
+      setActiveWorkspace(ws)
+      fetchWorkspaces()
+    } catch(e) { console.error(e) }
+  }
+
+  const handleDeleteWorkspace = async () => {
+    try {
+      await fetch(`${API_URL}/workspace/${activeWorkspace.id}`, { method: 'DELETE' })
+      setActiveWorkspace(null)
+      setShowSettings(false)
+      fetchWorkspaces()
+    } catch(e) { console.error(e) }
+  }
+
+  const handleModifyWorkspaceList = async (endpoint: string, payload: any) => {
+    try {
+      const res = await fetch(`${API_URL}/workspace/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const ws = await res.json()
+      setActiveWorkspace(ws)
+    } catch(e) { console.error(e) }
+  }
+
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
       {/* Sidebar */}
@@ -233,7 +271,10 @@ function App() {
                 >
                   {isIndexing ? 'Indexing...' : 'Index Workspace'}
                 </button>
-                <button className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-sm font-medium transition-colors">
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-sm font-medium transition-colors"
+                >
                   Settings
                 </button>
               </>
@@ -288,6 +329,34 @@ function App() {
           </form>
         </div>
       </div>
+
+      {showSettings && activeWorkspace && (
+        <SettingsModal 
+          activeWorkspace={activeWorkspace}
+          onClose={() => setShowSettings(false)}
+          onUpdate={handleUpdateWorkspaceName}
+          onDelete={handleDeleteWorkspace}
+          onAddFolder={() => setBrowserMode('folder')}
+          onRemoveFolder={(path: string) => handleModifyWorkspaceList('remove-folder', { workspace_id: activeWorkspace.id, folder_path: path })}
+          onAddFile={() => setBrowserMode('file')}
+          onRemoveFile={(path: string) => handleModifyWorkspaceList('remove-file', { workspace_id: activeWorkspace.id, file_path: path })}
+        />
+      )}
+      
+      {browserMode && activeWorkspace && (
+        <FileBrowserModal 
+          API_URL={API_URL}
+          mode={browserMode}
+          onClose={() => setBrowserMode(null)}
+          onSelect={(path: string) => {
+            handleModifyWorkspaceList(browserMode === 'folder' ? 'add-folder' : 'add-file', {
+               workspace_id: activeWorkspace.id,
+               [browserMode === 'folder' ? 'folder_path' : 'file_path']: path
+            });
+            setBrowserMode(null);
+          }}
+        />
+      )}
     </div>
   )
 }

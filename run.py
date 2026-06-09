@@ -6,7 +6,7 @@ import time
 def run_backend():
     print("Starting backend...")
     # Run uvicorn using the python executable to avoid path issues
-    subprocess.run([sys.executable, "-m", "uvicorn", "backend.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"])
+    subprocess.run([sys.executable, "-m", "uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"], cwd="backend")
 
 def run_frontend():
     print("Starting frontend...")

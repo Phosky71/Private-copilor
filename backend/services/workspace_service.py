@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import shutil
 from typing import List, Dict, Any
 
 WORKSPACES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workspaces")
@@ -25,6 +26,7 @@ class WorkspaceService:
             "id": workspace_id,
             "name": name,
             "folders": [],
+            "files": [],
             "model": "qwen2.5-coder:7b"
         }
         
@@ -51,7 +53,10 @@ class WorkspaceService:
             raise ValueError(f"Workspace {workspace_id} not found")
             
         with open(config_path, "r") as f:
-            return json.load(f)
+            config = json.load(f)
+            if "files" not in config:
+                config["files"] = []
+            return config
             
     def add_folder(self, workspace_id: str, folder_path: str) -> Dict[str, Any]:
         if not os.path.exists(folder_path):
@@ -81,6 +86,44 @@ class WorkspaceService:
         config["model"] = model
         with open(self._get_config_path(workspace_id), "w") as f:
             json.dump(config, f, indent=4)
+        return config
+
+    def update_workspace_name(self, workspace_id: str, name: str) -> Dict[str, Any]:
+        config = self.get_workspace(workspace_id)
+        config["name"] = name
+        with open(self._get_config_path(workspace_id), "w") as f:
+            json.dump(config, f, indent=4)
+        return config
+
+    def delete_workspace(self, workspace_id: str):
+        ws_dir = self._get_workspace_dir(workspace_id)
+        if os.path.exists(ws_dir):
+            shutil.rmtree(ws_dir)
+        from db.chroma_manager import chroma_manager
+        if workspace_id in chroma_manager.clients:
+            del chroma_manager.clients[workspace_id]
+
+    def add_file(self, workspace_id: str, file_path: str) -> Dict[str, Any]:
+        if not os.path.exists(file_path):
+            raise ValueError(f"File path does not exist: {file_path}")
+            
+        config = self.get_workspace(workspace_id)
+        
+        if file_path not in config.get("files", []):
+            config.setdefault("files", []).append(file_path)
+            with open(self._get_config_path(workspace_id), "w") as f:
+                json.dump(config, f, indent=4)
+                
+        return config
+        
+    def remove_file(self, workspace_id: str, file_path: str) -> Dict[str, Any]:
+        config = self.get_workspace(workspace_id)
+        
+        if file_path in config.get("files", []):
+            config["files"].remove(file_path)
+            with open(self._get_config_path(workspace_id), "w") as f:
+                json.dump(config, f, indent=4)
+                
         return config
 
 workspace_service = WorkspaceService()

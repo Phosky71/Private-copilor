@@ -5,37 +5,45 @@ from typing import List, Dict, Any
 from core.rag import rag_service
 from services.workspace_service import workspace_service
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "models.json")
-
 class LLMClient:
     def __init__(self, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
-        self.models_config = self._load_config()
-        self.active_model_id = self._get_default_model_id()
-        
-    def _load_config(self) -> Dict[str, Any]:
-        if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH, "r") as f:
-                return json.load(f)
-        return {"default": "qwen2.5-coder:7b", "models": []}
-        
-    def _get_default_model_id(self) -> str:
-        default_model_str = self.models_config.get("default", "qwen2.5-coder:7b")
-        for m in self.models_config.get("models", []):
-            if m["model"] == default_model_str:
-                return m["id"]
-        return "qwen"
+        self.active_model_id = "qwen2.5-coder:7b"
 
     def get_models_config(self) -> Dict[str, Any]:
-        return self.models_config
+        try:
+            res = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                models = []
+                for m in data.get("models", []):
+                    model_name = m.get("name")
+                    models.append({
+                        "id": model_name,
+                        "name": model_name,
+                        "model": model_name
+                    })
+                
+                default_model = "qwen2.5-coder:7b"
+                if models and not any(m["id"] == default_model for m in models):
+                    default_model = models[0]["id"]
+                    
+                return {
+                    "default": default_model,
+                    "models": models
+                }
+        except Exception as e:
+            print(f"Error fetching Ollama models: {e}")
+            
+        # Fallback
+        return {
+            "default": "qwen2.5-coder:7b",
+            "models": [{"id": "qwen2.5-coder:7b", "name": "Qwen 2.5 Coder 7B", "model": "qwen2.5-coder:7b"}]
+        }
 
     def set_active_model(self, model_id: str) -> str:
-        # Verify model exists
-        for m in self.models_config.get("models", []):
-            if m["id"] == model_id:
-                self.active_model_id = model_id
-                return m["model"]
-        raise ValueError(f"Model ID {model_id} not found in config")
+        self.active_model_id = model_id
+        return model_id
 
     def resolve_model(self, workspace_id: str = None) -> str:
         if workspace_id:
@@ -46,13 +54,7 @@ class LLMClient:
                     return ws_model
             except:
                 pass
-                
-        # Resolve from active_model_id
-        for m in self.models_config.get("models", []):
-            if m["id"] == self.active_model_id:
-                return m["model"]
-                
-        return self.models_config.get("default", "qwen2.5-coder:7b")
+        return self.active_model_id
 
     def build_prompt(self, workspace_id: str, query: str) -> str:
         results = rag_service.search(workspace_id, query, top_k=5)

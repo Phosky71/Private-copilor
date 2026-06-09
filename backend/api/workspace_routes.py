@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from services.workspace_service import workspace_service
-from api.schemas import CreateWorkspaceRequest, AddFolderRequest, SwitchWorkspaceRequest
+from api.schemas import (CreateWorkspaceRequest, AddFolderRequest, 
+    SwitchWorkspaceRequest, UpdateWorkspaceRequest, 
+    FileRequest, RemoveFolderRequest)
 
 router = APIRouter()
 
@@ -49,3 +51,46 @@ def get_status():
         except:
             return {"active_workspace": None}
     return {"active_workspace": None}
+
+@router.post("/update")
+def update_workspace(request: UpdateWorkspaceRequest):
+    try:
+        ws = workspace_service.update_workspace_name(request.workspace_id, request.name)
+        return ws
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/{workspace_id}")
+def delete_workspace(workspace_id: str):
+    try:
+        workspace_service.delete_workspace(workspace_id)
+        global active_workspace_id
+        if active_workspace_id == workspace_id:
+            active_workspace_id = None
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/add-file")
+def add_file(request: FileRequest):
+    try:
+        ws = workspace_service.add_file(request.workspace_id, request.file_path)
+        return ws
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/remove-file")
+def remove_file(request: FileRequest):
+    try:
+        ws = workspace_service.remove_file(request.workspace_id, request.file_path)
+        return ws
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/remove-folder")
+def remove_folder(request: RemoveFolderRequest):
+    try:
+        ws = workspace_service.remove_folder(request.workspace_id, request.folder_path)
+        return ws
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -41,18 +41,24 @@ class Indexer:
     def index_workspace(self, workspace_id: str):
         workspace = workspace_service.get_workspace(workspace_id)
         folders = workspace.get("folders", [])
+        files = workspace.get("files", [])
         
         collection = chroma_manager.get_collection(workspace_id)
         metadata_cache = self._load_metadata(workspace_id)
         new_metadata_cache = {}
 
+        all_file_paths = set()
+
         for folder in folders:
             if not os.path.exists(folder):
                 continue
-                
-            file_paths = FileScanner.scan_directory(folder)
+            all_file_paths.update(FileScanner.scan_directory(folder))
+
+        for file in files:
+            if os.path.exists(file):
+                all_file_paths.add(file)
             
-            for file_path in file_paths:
+        for file_path in all_file_paths:
                 try:
                     mtime = os.path.getmtime(file_path)
                     new_metadata_cache[file_path] = mtime
